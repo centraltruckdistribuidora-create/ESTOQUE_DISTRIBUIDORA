@@ -1411,6 +1411,7 @@
 
         // Variáveis globais
         let currentProduto = null;
+        let produtosInventario = [];
 
         // 📱 Navegação entre abas
         document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -2062,6 +2063,168 @@
             mostrarToast('RELATÓRIO ENVIADO PARA IMPRESSÃO', 'success');
         }
 
+        // Imprimir inventário
+        function imprimirInventario() {
+            if (!produtosInventario || produtosInventario.length === 0) {
+                mostrarToast('CARREGUE O INVENTÁRIO ANTES DE IMPRIMIR', 'warning');
+                return;
+            }
+
+            // Criar uma nova janela para impressão
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            if (!printWindow) {
+                mostrarToast('BLOQUEADOR DE POPUPS DETECTADO. PERMITA POPUPS PARA IMPRIMIR', 'error');
+                return;
+            }
+
+            // Obter dados do inventário para o cabeçalho
+            const searchTerm = document.getElementById('inventario-search').value.trim();
+            const filtros = searchTerm ? `Busca: "${searchTerm}"` : 'Todos os produtos';
+
+            // Calcular totais
+            let totalProdutos = produtosInventario.length;
+            let totalQuantidade = produtosInventario.reduce((sum, p) => sum + p.quantidade, 0);
+            let totalValor = produtosInventario.reduce((sum, p) => sum + (p.quantidade * p.valor), 0);
+
+            // Gerar tabela HTML
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Quantidade</th>
+                            <th>Localização</th>
+                            <th>Valor Unit.</th>
+                            <th>Valor Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            produtosInventario.forEach(produto => {
+                const valorTotal = produto.quantidade * produto.valor;
+                tableHTML += `
+                    <tr>
+                        <td><strong>${produto.codigo}</strong></td>
+                        <td>${produto.descricao}</td>
+                        <td>${produto.quantidade}</td>
+                        <td>${produto.localizacao}</td>
+                        <td>${formatarMoeda(produto.valor)}</td>
+                        <td><strong>${formatarMoeda(valorTotal)}</strong></td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="2"><strong>TOTAIS:</strong></td>
+                            <td><strong>${totalQuantidade}</strong></td>
+                            <td colspan="2"></td>
+                            <td><strong>${formatarMoeda(totalValor)}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            `;
+
+            // HTML para impressão
+            const printHTML = `
+                <!DOCTYPE html>
+                <html lang="pt-BR">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Inventário - Estoque da Distribuidora</title>
+                    <style>
+                        body {
+                            font-family: 'Courier New', monospace;
+                            margin: 20px;
+                            color: #000;
+                            background: #fff;
+                        }
+                        .print-header {
+                            text-align: center;
+                            border-bottom: 2px solid #000;
+                            padding-bottom: 20px;
+                            margin-bottom: 20px;
+                        }
+                        .print-header h1 {
+                            margin: 0 0 10px 0;
+                            font-size: 24px;
+                        }
+                        .print-info {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-bottom: 20px;
+                            font-size: 12px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 20px;
+                            font-size: 12px;
+                        }
+                        th, td {
+                            border: 1px solid #000;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        th {
+                            background: #f0f0f0;
+                            font-weight: bold;
+                        }
+                        .total-row {
+                            background: #e0e0e0;
+                            font-weight: bold;
+                        }
+                        .print-footer {
+                            margin-top: 30px;
+                            text-align: center;
+                            font-size: 10px;
+                            color: #666;
+                        }
+                        @media print {
+                            body { margin: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-header">
+                        <h1>ESTOQUE DA DISTRIBUIDORA</h1>
+                        <h2>INVENTÁRIO COMPLETO</h2>
+                        <div class="print-info">
+                            <div><strong>Filtros:</strong> ${filtros}</div>
+                            <div><strong>Data de Emissão:</strong> ${new Date().toLocaleString('pt-BR')}</div>
+                        </div>
+                        <div style="margin-bottom: 10px; font-size: 14px;">
+                            <strong>Total de Produtos:</strong> ${totalProdutos} | <strong>Quantidade Total:</strong> ${totalQuantidade} | <strong>Valor Total:</strong> ${formatarMoeda(totalValor)}
+                        </div>
+                    </div>
+
+                    ${tableHTML}
+
+                    <div class="print-footer">
+                        <p>Inventário gerado automaticamente pelo Sistema de Controle de Estoque</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            printWindow.document.write(printHTML);
+            printWindow.document.close();
+
+            // Aguardar carregamento e imprimir
+            printWindow.onload = function() {
+                printWindow.print();
+                // Fechar a janela após impressão (opcional)
+                // printWindow.close();
+            };
+
+            mostrarToast('INVENTÁRIO ENVIADO PARA IMPRESSÃO', 'success');
+        }
+
         function limparRelatorio() {
             document.getElementById('relatorio-codigo').value = '';
             document.getElementById('relatorio-data-inicio').value = '';
@@ -2163,7 +2326,11 @@
                         </div>
                     `;
                 } else {
+                    produtosInventario = produtosFiltrados;
                     let html = `
+                        <div class="action-buttons" style="margin-bottom: 20px; justify-content: flex-end;">
+                            <button class="btn btn-print" onclick="imprimirInventario()">🖨️ IMPRIMIR INVENTÁRIO</button>
+                        </div>
                         <div class="report-table-container">
                             <div style="margin-bottom: 20px; color: var(--text-secondary);">
                                 <strong>${produtosFiltrados.length}</strong> produto(s) encontrado(s)
